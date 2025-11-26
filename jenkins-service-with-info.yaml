@@ -1,0 +1,18 @@
+apiVersion: v1                           # API version for Service objects
+kind: Service                            # Defines a Service to expose the Jenkins pod
+metadata:
+  name: jenkins-service                  # Name of the Service
+  namespace: jenkins                     # Service lives in the Jenkins namespace
+  annotations:
+      prometheus.io/scrape: 'true'       # Tells Prometheus to scrape this Service
+      prometheus.io/path:   /            # Prometheus endpoint path
+      prometheus.io/port:   '8080'       # Prometheus should scrape port 8080
+spec:
+  selector:
+    app: jenkins-server                  # Selects pods with label app=jenkins-server
+  type: NodePort                         # Exposes Jenkins externally via a node port
+  ports:
+    - port: 8080                         # Service port (cluster internal port)
+      targetPort: 8080                   # Container port inside the Jenkins pod
+      nodePort: 32000                    # Port exposed on each Kubernetes node
+

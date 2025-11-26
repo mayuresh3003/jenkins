@@ -1,0 +1,55 @@
+# -----------------------------
+# StorageClass (manual provisioning)
+# -----------------------------
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: local-storage                  # Name of the StorageClass
+provisioner: kubernetes.io/no-provisioner   # No dynamic provisioning (for local volumes)
+volumeBindingMode: WaitForFirstConsumer     # PV binds only when a pod needs it (important for local PV)
+---
+# -----------------------------
+# PersistentVolume (local disk on a node)
+# -----------------------------
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-pv-volume             # PV name
+  labels:
+    type: local                       # Helpful label, optional
+spec:
+  storageClassName: local-storage     # Must match the StorageClass above
+  claimRef:                           # Pre-binds PV to a specific PVC
+    name: jenkins-pv-claim            # PVC name it is bound to
+    namespace: jenkins                # Namespace of the PVC
+  capacity:
+    storage: 30Gi                     # Total storage available in this PV
+  accessModes:
+    - ReadWriteOnce                   # Can be mounted by only one node
+  local:
+    path: /mnt                        # Local path on the worker node used for the volume
+  nodeAffinity:                       # IMPORTANT: PV lives only on one specific node
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname   # Hostname label automatically added by Kubernetes
+          operator: In
+          values:
+          - mario-kind-cluster-worker   # Node where this PV physically exists
+---
+# -----------------------------
+# PersistentVolumeClaim (request storage)
+# -----------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pv-claim              # PVC name
+  namespace: jenkins                  # Namespace where Jenkins runs
+spec:
+  storageClassName: local-storage     # Must match StorageClass & PV
+  accessModes:
+    - ReadWriteOnce                   # Same mode as PV
+  resources:
+    requests:
+      storage: 15Gi                   # PVC asks for 15Gi (PV has 30Gi, so OK)
+

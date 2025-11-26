@@ -1,0 +1,61 @@
+apiVersion: apps/v1                        # Deployment API version
+kind: Deployment                           # We are creating a Deployment
+metadata:
+  name: jenkins                            # Name of the Deployment
+  namespace: jenkins                       # Namespace where Jenkins runs
+spec:
+  replicas: 1                              # Jenkins master must run as a single pod
+  selector:
+    matchLabels:
+      app: jenkins-server                  # Label used to match pods managed by this Deployment
+  strategy:
+    type: Recreate                         # Ensures only one Jenkins pod during updates
+  template:
+    metadata:
+      labels:
+        app: jenkins-server                # Pod gets this label
+    spec:
+      securityContext:
+        fsGroup: 1000                      # Ensures volume permissions for group ID 1000
+        runAsUser: 1000                    # Run Jenkins as non-root user 1000
+      serviceAccountName: jenkins-admin    # ServiceAccount used for Kubernetes API access
+      containers:
+        - name: jenkins                    # Container name
+          image: jenkins/jenkins:lts       # Stable Jenkins LTS image
+          imagePullPolicy: Always          # Always pull the latest image version
+          resources:
+            limits:
+              memory: "2Gi"                # Max memory Jenkins can use
+              cpu: "1000m"                 # Max 1 CPU core
+            requests:
+              memory: "500Mi"              # Guaranteed 500Mi memory
+              cpu: "500m"                  # Guaranteed 0.5 CPU core
+          ports:
+            - name: httpport
+              containerPort: 8080          # Jenkins web UI port
+            - name: jnlpport
+              containerPort: 50000         # JNLP port for connecting agents
+          livenessProbe:                   # Kubernetes checks if Jenkins is alive
+            httpGet:
+              path: "/login"               # Health endpoint for liveness check
+              port: 8080
+            initialDelaySeconds: 90        # Delay before first check
+            periodSeconds: 10              # Check every 10s
+            timeoutSeconds: 5              # Probe timeout
+            failureThreshold: 5            # Restart pod after 5 failures
+          readinessProbe:                  # Checks if Jenkins is ready to serve traffic
+            httpGet:
+              path: "/login"               # Ready check endpoint
+              port: 8080
+            initialDelaySeconds: 60        # Wait 60s before readiness check
+            periodSeconds: 10              # Check every 10s
+            timeoutSeconds: 5              # Probe timeout
+            failureThreshold: 3            # Mark pod unready after 3 failures
+          volumeMounts:
+            - name: jenkins-data           # Volume mount name
+              mountPath: /var/jenkins_home # Jenkins home directory (persistent)
+      volumes:
+        - name: jenkins-data               # Volume definition
+          persistentVolumeClaim:
+            claimName: jenkins-pv-claim    # PVC providing persistent storage
+
